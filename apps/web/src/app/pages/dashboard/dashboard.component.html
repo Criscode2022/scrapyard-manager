@@ -1,0 +1,134 @@
+<div class="page-head">
+  <div>
+    <h1>Yard overview</h1>
+    <p>Snapshot of cars on the lot and parts on the shelves.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-secondary" routerLink="/cars">Manage cars</a>
+    <a class="btn btn-primary" routerLink="/parts">Manage parts</a>
+  </div>
+</div>
+
+@if (loading()) {
+  <div class="card empty">Loading yard data…</div>
+} @else if (error()) {
+  <div class="card empty">
+    <strong>Something went wrong</strong>
+    {{ error() }}
+    <div style="margin-top: 16px">
+      <button type="button" class="btn btn-secondary" (click)="reload()">Retry</button>
+    </div>
+  </div>
+} @else {
+  @if (stats(); as s) {
+    <div class="db-pill">
+      Data source:
+      <strong>{{ s.dbSource === 'neon' ? 'Neon Postgres' : 'In-memory (preview)' }}</strong>
+    </div>
+
+    <div class="grid-stats">
+      <div class="stat">
+        <div class="stat-label">Cars on lot</div>
+        <div class="stat-value">{{ s.totalCars }}</div>
+        <div class="stat-hint">All statuses</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Parts catalog</div>
+        <div class="stat-value">{{ s.totalParts }}</div>
+        <div class="stat-hint">{{ s.availableParts }} available</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Reserved</div>
+        <div class="stat-value">{{ s.reservedParts }}</div>
+        <div class="stat-hint">Held for customers</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Inventory value</div>
+        <div class="stat-value">{{ s.inventoryValue | currency:'USD':'symbol':'1.0-0' }}</div>
+        <div class="stat-hint">Available stock only</div>
+      </div>
+    </div>
+
+    <div class="split-2" style="margin-top: 24px">
+      <section class="card">
+        <div class="section-head">
+          <h2>Cars by status</h2>
+        </div>
+        <div class="bars">
+          @for (row of s.carsByStatus; track row.status) {
+            <div class="bar-row">
+              <div class="bar-meta">
+                <span class="badge" [class]="row.status">{{ row.status | titlecase }}</span>
+                <span class="count">{{ row.count }}</span>
+              </div>
+              <div class="bar-track">
+                <div
+                  class="bar-fill"
+                  [style.width.%]="s.totalCars ? (row.count / s.totalCars) * 100 : 0"
+                ></div>
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Parts by category</h2>
+        </div>
+        <div class="chips">
+          @for (row of s.partsByCategory; track row.category) {
+            @if (row.count > 0) {
+              <div class="chip">
+                <span>{{ row.category | titlecase }}</span>
+                <strong>{{ row.count }}</strong>
+              </div>
+            }
+          }
+        </div>
+      </section>
+    </div>
+
+    <div class="split-2" style="margin-top: 24px">
+      <section class="card">
+        <div class="section-head">
+          <h2>Recent cars</h2>
+          <a class="linkish" routerLink="/cars">View all</a>
+        </div>
+        <ul class="list">
+          @for (car of s.recentCars; track car.id) {
+            <li>
+              <a [routerLink]="['/cars', car.id]" class="list-main">
+                <strong>{{ car.year }} {{ car.make }} {{ car.model }}</strong>
+                <span class="muted">{{ car.yardLocation || 'No row' }} · {{ car.arrivalDate | date:'mediumDate' }}</span>
+              </a>
+              <span class="badge" [class]="car.status">{{ car.status | titlecase }}</span>
+            </li>
+          } @empty {
+            <li class="muted">No cars yet.</li>
+          }
+        </ul>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Recent parts</h2>
+          <a class="linkish" routerLink="/parts">View all</a>
+        </div>
+        <ul class="list">
+          @for (part of s.recentParts; track part.id) {
+            <li>
+              <div class="list-main">
+                <strong>{{ part.name }}</strong>
+                <span class="muted">{{ part.category | titlecase }} · {{ part.price | currency:'USD':'symbol':'1.0-0' }}</span>
+              </div>
+              <span class="badge" [class]="part.status">{{ part.status | titlecase }}</span>
+            </li>
+          } @empty {
+            <li class="muted">No parts yet.</li>
+          }
+        </ul>
+      </section>
+    </div>
+  }
+}

@@ -1,0 +1,178 @@
+<a class="back linkish" routerLink="/cars">← Back to cars</a>
+
+@if (loading()) {
+  <div class="card empty">Loading car…</div>
+} @else if (error()) {
+  <div class="card empty">
+    <strong>{{ error() }}</strong>
+    <a routerLink="/cars" class="btn btn-secondary" style="margin-top: 16px">Return to list</a>
+  </div>
+} @else {
+  @if (car(); as c) {
+    <div class="page-head">
+      <div>
+        <h1>{{ c.year }} {{ c.make }} {{ c.model }}</h1>
+        <p>
+          <span class="mono">{{ c.vin || 'No VIN' }}</span>
+          @if (c.color) {
+            <span> · {{ c.color }}</span>
+          }
+          @if (c.yardLocation) {
+            <span> · {{ c.yardLocation }}</span>
+          }
+        </p>
+      </div>
+      <div class="status-picker field">
+        <label for="status">Status</label>
+        <select
+          id="status"
+          [ngModel]="c.status"
+          (ngModelChange)="updateStatus($event)"
+        >
+          @for (s of statuses; track s) {
+            <option [value]="s">{{ s | titlecase }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div class="grid-stats">
+      <div class="stat">
+        <div class="stat-label">Purchase price</div>
+        <div class="stat-value">{{ c.purchasePrice | currency:'USD':'symbol':'1.0-0' }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Odometer</div>
+        <div class="stat-value">{{ c.odometer | number }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Arrived</div>
+        <div class="stat-value" style="font-size: 1.1rem">
+          {{ c.arrivalDate ? (c.arrivalDate | date:'mediumDate') : '—' }}
+        </div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Pulled parts</div>
+        <div class="stat-value">{{ parts().length }}</div>
+      </div>
+    </div>
+
+    @if (c.notes) {
+      <section class="card" style="margin-top: 24px">
+        <h2 class="section-title">Notes</h2>
+        <p class="notes">{{ c.notes }}</p>
+      </section>
+    }
+
+    <section style="margin-top: 24px">
+      <div class="page-head">
+        <div>
+          <h2 class="section-title">Parts from this car</h2>
+          <p>Inventory pulled or still on the vehicle.</p>
+        </div>
+        <button type="button" class="btn btn-primary" (click)="openPartForm()">Add part</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Part</th>
+              <th>Category</th>
+              <th>Condition</th>
+              <th>Status</th>
+              <th>Price</th>
+              <th>Bin</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (part of parts(); track part.id) {
+              <tr>
+                <td>
+                  <strong>{{ part.name }}</strong>
+                  <div class="mono">{{ part.sku || 'No SKU' }}</div>
+                </td>
+                <td>{{ part.category | titlecase }}</td>
+                <td>{{ conditionLabel(part.condition) | titlecase }}</td>
+                <td><span class="badge" [class]="part.status">{{ part.status | titlecase }}</span></td>
+                <td>{{ part.price | currency:'USD':'symbol':'1.0-0' }}</td>
+                <td>{{ part.binLocation || '—' }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6">
+                  <div class="empty">No parts logged for this car yet.</div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+}
+
+@if (showPartForm()) {
+  <div class="modal-backdrop" (click)="showPartForm.set(false)">
+    <div class="modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+      <h2>Add part from this car</h2>
+      <p class="sub">Log a pulled component against the source vehicle.</p>
+      <div class="form-grid">
+        <div class="field full">
+          <label>Name</label>
+          <input [(ngModel)]="partForm.name" placeholder="e.g. Alternator" />
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <select [(ngModel)]="partForm.category">
+            @for (c of categories; track c) {
+              <option [value]="c">{{ c | titlecase }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label>Condition</label>
+          <select [(ngModel)]="partForm.condition">
+            @for (c of conditions; track c) {
+              <option [value]="c">{{ conditionLabel(c) | titlecase }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select [(ngModel)]="partForm.status">
+            @for (s of partStatuses; track s) {
+              <option [value]="s">{{ s | titlecase }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label>Price</label>
+          <input type="number" min="0" [(ngModel)]="partForm.price" />
+        </div>
+        <div class="field">
+          <label>Quantity</label>
+          <input type="number" min="0" [(ngModel)]="partForm.quantity" />
+        </div>
+        <div class="field">
+          <label>SKU</label>
+          <input [(ngModel)]="partForm.sku" />
+        </div>
+        <div class="field">
+          <label>Bin location</label>
+          <input [(ngModel)]="partForm.binLocation" />
+        </div>
+        <div class="field full">
+          <label>Notes</label>
+          <textarea [(ngModel)]="partForm.notes"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" (click)="showPartForm.set(false)">Cancel</button>
+        <button type="button" class="btn btn-primary" [disabled]="saving()" (click)="savePart()">
+          {{ saving() ? 'Saving…' : 'Save part' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

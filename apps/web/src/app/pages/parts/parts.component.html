@@ -1,0 +1,182 @@
+<div class="page-head">
+  <div>
+    <h1>Parts inventory</h1>
+    <p>Price, bin, and sell components pulled from the yard.</p>
+  </div>
+  <button type="button" class="btn btn-primary" (click)="openCreate()">Add part</button>
+</div>
+
+<div class="toolbar">
+  <div class="field">
+    <label for="part-q">Search</label>
+    <input
+      id="part-q"
+      type="search"
+      placeholder="Name, SKU, bin…"
+      [(ngModel)]="filterQ"
+      (keyup.enter)="reload()"
+    />
+  </div>
+  <div class="field">
+    <label for="part-status">Status</label>
+    <select id="part-status" [(ngModel)]="filterStatus" (change)="reload()">
+      <option value="">All statuses</option>
+      @for (s of statuses; track s) {
+        <option [value]="s">{{ s | titlecase }}</option>
+      }
+    </select>
+  </div>
+  <div class="field">
+    <label for="part-cat">Category</label>
+    <select id="part-cat" [(ngModel)]="filterCategory" (change)="reload()">
+      <option value="">All categories</option>
+      @for (c of categories; track c) {
+        <option [value]="c">{{ c | titlecase }}</option>
+      }
+    </select>
+  </div>
+  <div class="field" style="flex: 0; min-width: auto">
+    <label>&nbsp;</label>
+    <button type="button" class="btn btn-secondary" (click)="reload()">Filter</button>
+  </div>
+</div>
+
+@if (error()) {
+  <div class="card empty" style="margin-bottom: 16px">{{ error() }}</div>
+}
+
+@if (loading()) {
+  <div class="card empty">Loading parts…</div>
+} @else {
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Part</th>
+          <th>Category</th>
+          <th>Condition</th>
+          <th>Status</th>
+          <th>Qty</th>
+          <th>Price</th>
+          <th>Source car</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (part of parts(); track part.id) {
+          <tr>
+            <td>
+              <strong>{{ part.name }}</strong>
+              <div class="mono">{{ part.sku || 'No SKU' }} · {{ part.binLocation || 'No bin' }}</div>
+            </td>
+            <td>{{ part.category | titlecase }}</td>
+            <td>{{ conditionLabel(part.condition) | titlecase }}</td>
+            <td><span class="badge" [class]="part.status">{{ part.status | titlecase }}</span></td>
+            <td>{{ part.quantity }}</td>
+            <td>{{ part.price | currency:'USD':'symbol':'1.0-0' }}</td>
+            <td>
+              @if (part.carId) {
+                <a class="linkish" [routerLink]="['/cars', part.carId]">{{ carLabel(part) }}</a>
+              } @else {
+                —
+              }
+            </td>
+            <td>
+              <div class="row-actions">
+                <button type="button" class="btn btn-ghost" (click)="openEdit(part)">Edit</button>
+                <button type="button" class="btn btn-ghost" (click)="remove(part)">Delete</button>
+              </div>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="8">
+              <div class="empty">
+                <strong>No parts match</strong>
+                Add inventory or clear filters.
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+@if (showForm()) {
+  <div class="modal-backdrop" (click)="closeForm()">
+    <div class="modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+      <h2>{{ editing() ? 'Edit part' : 'Add part' }}</h2>
+      <p class="sub">Catalog a component for sale or reserve.</p>
+
+      <div class="form-grid">
+        <div class="field full">
+          <label>Name</label>
+          <input [(ngModel)]="form.name" required />
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <select [(ngModel)]="form.category">
+            @for (c of categories; track c) {
+              <option [value]="c">{{ c | titlecase }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label>Condition</label>
+          <select [(ngModel)]="form.condition">
+            @for (c of conditions; track c) {
+              <option [value]="c">{{ conditionLabel(c) | titlecase }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select [(ngModel)]="form.status">
+            @for (s of statuses; track s) {
+              <option [value]="s">{{ s | titlecase }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label>Price</label>
+          <input type="number" min="0" [(ngModel)]="form.price" />
+        </div>
+        <div class="field">
+          <label>Quantity</label>
+          <input type="number" min="0" [(ngModel)]="form.quantity" />
+        </div>
+        <div class="field">
+          <label>SKU</label>
+          <input [(ngModel)]="form.sku" />
+        </div>
+        <div class="field">
+          <label>Bin location</label>
+          <input [(ngModel)]="form.binLocation" />
+        </div>
+        <div class="field full">
+          <label>Source car</label>
+          <select [(ngModel)]="form.carId">
+            <option value="">None</option>
+            @for (car of cars(); track car.id) {
+              <option [value]="car.id">
+                {{ car.year }} {{ car.make }} {{ car.model }}
+              </option>
+            }
+          </select>
+        </div>
+        <div class="field full">
+          <label>Notes</label>
+          <textarea [(ngModel)]="form.notes"></textarea>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" (click)="closeForm()">Cancel</button>
+        <button type="button" class="btn btn-primary" [disabled]="saving()" (click)="save()">
+          {{ saving() ? 'Saving…' : 'Save part' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

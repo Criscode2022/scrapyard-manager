@@ -1,0 +1,156 @@
+<div class="page-head">
+  <div>
+    <h1>Cars</h1>
+    <p>Incoming hulks, dismantle progress, and yard locations.</p>
+  </div>
+  <button type="button" class="btn btn-primary" (click)="openCreate()">Add car</button>
+</div>
+
+<div class="toolbar">
+  <div class="field">
+    <label for="car-q">Search</label>
+    <input
+      id="car-q"
+      type="search"
+      placeholder="Make, model, VIN, row…"
+      [(ngModel)]="filterQ"
+      (keyup.enter)="reload()"
+    />
+  </div>
+  <div class="field">
+    <label for="car-status">Status</label>
+    <select id="car-status" [(ngModel)]="filterStatus" (change)="reload()">
+      <option value="">All statuses</option>
+      @for (s of statuses; track s) {
+        <option [value]="s">{{ s | titlecase }}</option>
+      }
+    </select>
+  </div>
+  <div class="field" style="flex: 0; min-width: auto; justify-content: flex-end">
+    <label>&nbsp;</label>
+    <button type="button" class="btn btn-secondary" (click)="reload()">Filter</button>
+  </div>
+</div>
+
+@if (error()) {
+  <div class="card empty" style="margin-bottom: 16px">{{ error() }}</div>
+}
+
+@if (loading()) {
+  <div class="card empty">Loading cars…</div>
+} @else {
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Vehicle</th>
+          <th>Status</th>
+          <th>Location</th>
+          <th>Arrived</th>
+          <th>Paid</th>
+          <th>Parts</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (car of cars(); track car.id) {
+          <tr>
+            <td>
+              <a class="linkish" [routerLink]="['/cars', car.id]">
+                {{ car.year }} {{ car.make }} {{ car.model }}
+              </a>
+              <div class="mono">{{ car.vin || 'No VIN' }}</div>
+            </td>
+            <td><span class="badge" [class]="car.status">{{ car.status | titlecase }}</span></td>
+            <td>{{ car.yardLocation || '—' }}</td>
+            <td>{{ car.arrivalDate ? (car.arrivalDate | date:'mediumDate') : '—' }}</td>
+            <td>{{ car.purchasePrice | currency:'USD':'symbol':'1.0-0' }}</td>
+            <td>{{ car.parts?.length ?? 0 }}</td>
+            <td>
+              <div class="row-actions">
+                <button type="button" class="btn btn-ghost" (click)="openEdit(car)">Edit</button>
+                <button type="button" class="btn btn-ghost" (click)="remove(car)">Delete</button>
+              </div>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="7">
+              <div class="empty">
+                <strong>No cars match</strong>
+                Add a car to start tracking the lot.
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+@if (showForm()) {
+  <div class="modal-backdrop" (click)="closeForm()">
+    <div class="modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+      <h2>{{ editing() ? 'Edit car' : 'Add car' }}</h2>
+      <p class="sub">Capture intake details for a vehicle on the yard.</p>
+
+      <div class="form-grid">
+        <div class="field">
+          <label>Make</label>
+          <input [(ngModel)]="form.make" required />
+        </div>
+        <div class="field">
+          <label>Model</label>
+          <input [(ngModel)]="form.model" required />
+        </div>
+        <div class="field">
+          <label>Year</label>
+          <input type="number" [(ngModel)]="form.year" />
+        </div>
+        <div class="field">
+          <label>Color</label>
+          <input [(ngModel)]="form.color" />
+        </div>
+        <div class="field">
+          <label>VIN</label>
+          <input [(ngModel)]="form.vin" />
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select [(ngModel)]="form.status">
+            @for (s of statuses; track s) {
+              <option [value]="s">{{ s | titlecase }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label>Yard location</label>
+          <input [(ngModel)]="form.yardLocation" placeholder="Row A-12" />
+        </div>
+        <div class="field">
+          <label>Arrival date</label>
+          <input type="date" [(ngModel)]="form.arrivalDate" />
+        </div>
+        <div class="field">
+          <label>Purchase price</label>
+          <input type="number" min="0" [(ngModel)]="form.purchasePrice" />
+        </div>
+        <div class="field">
+          <label>Odometer</label>
+          <input type="number" min="0" [(ngModel)]="form.odometer" />
+        </div>
+        <div class="field full">
+          <label>Notes</label>
+          <textarea [(ngModel)]="form.notes" placeholder="Damage, condition, pull priority…"></textarea>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" (click)="closeForm()">Cancel</button>
+        <button type="button" class="btn btn-primary" [disabled]="saving()" (click)="save()">
+          {{ saving() ? 'Saving…' : 'Save car' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
