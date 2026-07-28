@@ -1,6 +1,7 @@
 name: Deploy production
 
-# Uses the GitHub Environment "production" so DATABASE_URL is injected.
+# Uses GitHub Environment "production" so DATABASE_URL is injected.
+# Optionally syncs DATABASE_URL to Vercel when VERCEL_TOKEN is set.
 on:
   push:
     branches: [main]
@@ -12,7 +13,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Build · Neon · Deploy
+    name: Build · Neon · Vercel
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -25,6 +26,9 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      # Pre-filled from Vercel connector project (override via secrets if needed)
+      VERCEL_TEAM_ID: ${{ secrets.VERCEL_ORG_ID || 'team_XDogXucjsiIPPOiJSxbMGbSc' }}
+      VERCEL_PROJECT: ${{ secrets.VERCEL_PROJECT_ID || 'prj_0ZbozsuEfqvzYYY7bxuo5xnwGzTx' }}
 
     steps:
       - name: Checkout
@@ -43,7 +47,6 @@ jobs:
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::DATABASE_URL is not set on the production environment."
-            echo "Repo → Settings → Environments → production → Environment secrets"
             exit 1
           fi
           node -e "const u=new URL(process.env.DATABASE_URL); console.log('Neon host:', u.hostname)"
@@ -70,31 +73,54 @@ jobs:
       - name: Bootstrap Neon (schema + seed)
         run: node scripts/bootstrap-neon.cjs
 
-      - name: Create GitHub deployment
-        id: gh_deploy
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const deployment = await github.rest.repos.createDeployment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: context.sha,
-              environment: 'production',
-              auto_merge: false,
-              required_contexts: [],
-              description: 'Scrapyard manager production deploy',
-            });
-            if (deployment.status >= 400) {
-              core.setFailed(`createDeployment failed: ${deployment.status}`);
-              return;
-            }
-            core.setOutput('deployment_id', deployment.data.id);
+      - name: Sync DATABASE_URL to Vercel
+        if: ${{ env.VERCEL_TOKEN != '' }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -e
+          PROJECT="${VERCEL_PROJECT}"
+          TEAM="${VERCEL_TEAM_ID}"
+          # Upsert: remove existing then create (API has no pure upsert for sensitive)
+          EXISTING=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v10/projects/${PROJECT}/env?teamId=${TEAM}" || true)
+          echo "Current env keys (names only):"
+          echo "$EXISTING" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);(j.envs||[]).forEach(e=>console.log('-',e.key, (e.target||[]).join(',')));}catch(e){console.log('parse skip')}})"
 
-      - name: Deploy to Vercel (optional)
+          # Delete existing DATABASE_URL entries so we can recreate
+          echo "$EXISTING" | node -e "
+            let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',async()=>{
+              try {
+                const j=JSON.parse(d);
+                const ids=(j.envs||[]).filter(e=>e.key==='DATABASE_URL').map(e=>e.id);
+                for (const id of ids) {
+                  console.log('Removing old env', id);
+                  const r=await fetch('https://api.vercel.com/v9/projects/${PROJECT}/env/'+id+'?teamId=${TEAM}',{
+                    method:'DELETE',
+                    headers:{Authorization:'Bearer '+process.env.VERCEL_TOKEN}
+                  });
+                  console.log('delete', id, r.status);
+                }
+              } catch(e) { console.log(e); }
+            });
+          "
+
+          # Create sensitive DATABASE_URL for production + preview
+          RESP=$(curl -sS -X POST \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.vercel.com/v10/projects/${PROJECT}/env?teamId=${TEAM}" \
+            -d "$(node -e "console.log(JSON.stringify({key:'DATABASE_URL',value:process.env.DATABASE_URL,type:'sensitive',target:['production','preview'],comment:'Neon Postgres — synced from GitHub production environment'}))")")
+          echo "$RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);if(j.error){console.error(j);process.exit(1)}console.log('Vercel env set:', j.created?.key||j.key||'ok', j.created?.type||j.type||'');}catch(e){console.log(d);process.exit(1)}})"
+          echo "::notice::DATABASE_URL synced to Vercel project ${PROJECT}"
+
+      - name: Deploy to Vercel
         id: vercel
         if: ${{ env.VERCEL_TOKEN != '' }}
         run: |
           npm i -g vercel@39
+          export VERCEL_ORG_ID="${VERCEL_TEAM_ID}"
+          export VERCEL_PROJECT_ID="${VERCEL_PROJECT}"
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
           vercel build --prod --token="$VERCEL_TOKEN"
           URL=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
@@ -107,24 +133,33 @@ jobs:
           if [ -n "${{ steps.vercel.outputs.url }}" ]; then
             echo "url=${{ steps.vercel.outputs.url }}" >> "$GITHUB_OUTPUT"
           else
-            # No Vercel token — mark success against the repo (DB already live on Neon)
-            echo "url=https://github.com/${{ github.repository }}" >> "$GITHUB_OUTPUT"
-            echo "::notice::DATABASE_URL/Neon is live. Add VERCEL_TOKEN (+ ORG/PROJECT IDs) on the production environment to publish the app URL."
+            echo "url=https://scrapyard-manager.vercel.app" >> "$GITHUB_OUTPUT"
+            if [ -z "$VERCEL_TOKEN" ]; then
+              echo "::notice::Add VERCEL_TOKEN to GitHub production secrets so Actions can push DATABASE_URL to Vercel and redeploy."
+              echo "::notice::Or set DATABASE_URL manually: https://vercel.com/criscode2022s-projects/scrapyard-manager/settings/environment-variables"
+            fi
           fi
 
-      - name: Mark GitHub deployment success
-        if: always() && steps.gh_deploy.outputs.deployment_id
+      - name: Create GitHub deployment
         uses: actions/github-script@v7
         with:
           script: |
-            const state = '${{ job.status }}' === 'success' ? 'success' : 'failure';
-            await github.rest.repos.createDeploymentStatus({
+            const deployment = await github.rest.repos.createDeployment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              deployment_id: ${{ steps.gh_deploy.outputs.deployment_id }},
-              state,
-              environment_url: '${{ steps.final_url.outputs.url }}' || undefined,
-              description: state === 'success'
-                ? 'Neon bootstrapped; production environment ready'
-                : 'Deploy failed',
+              ref: context.sha,
+              environment: 'production',
+              auto_merge: false,
+              required_contexts: [],
+              description: 'Scrapyard production',
             });
+            if (deployment.status < 400) {
+              await github.rest.repos.createDeploymentStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                deployment_id: deployment.data.id,
+                state: 'success',
+                environment_url: '${{ steps.final_url.outputs.url }}',
+                description: 'Neon ready; Vercel env sync if token present',
+              });
+            }
