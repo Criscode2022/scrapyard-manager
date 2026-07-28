@@ -1,7 +1,7 @@
 name: Neon connection check
 
-# Optional: runs only when DATABASE_URL is set on the "production" environment.
-# Wire this secret after creating a Neon project (see scripts/setup-neon.mjs).
+# Manual smoke test of the production environment secret.
+# Prefer the full Deploy production workflow for real deploys.
 
 on:
   workflow_dispatch:
@@ -11,15 +11,35 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Verify DATABASE_URL is configured
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install API (for pg)
+        run: npm ci --legacy-peer-deps
+        working-directory: apps/api
+      - name: Verify DATABASE_URL
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "DATABASE_URL is not set on the production environment."
-            echo "Create a Neon project (scripts/setup-neon.mjs) and:"
-            echo "  gh secret set DATABASE_URL --env production -R OWNER/REPO"
             exit 1
           fi
           echo "DATABASE_URL is present (value redacted)."
-          echo "Host: $(node -e "try{const u=new URL(process.env.DATABASE_URL);console.log(u.hostname)}catch{console.log('unparsed')}")"
+          node -e "const u=new URL(process.env.DATABASE_URL); console.log('Host:', u.hostname)"
+      - name: Ping Neon
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        working-directory: apps/api
+        run: |
+          node -e "
+          const { Client } = require('pg');
+          (async () => {
+            const c = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+            await c.connect();
+            const r = await c.query('select now() as now');
+            console.log('Neon ping OK', r.rows[0]);
+            await c.end();
+          })().catch(e => { console.error(e); process.exit(1); });
+          "
