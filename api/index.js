@@ -124,31 +124,50 @@ const MIME = {
   '.woff2': 'font/woff2',
 };
 
+const { execSync } = require('child_process');
+const PUBLIC_ROOT = '/tmp/scrapyard-public';
+let publicReady = false;
+
+function ensurePublic() {
+  if (publicReady && fs.existsSync(path.join(PUBLIC_ROOT, 'index.html'))) return true;
+  try {
+    fs.mkdirSync(PUBLIC_ROOT, { recursive: true });
+    if (!fs.existsSync(path.join(PUBLIC_ROOT, 'index.html'))) {
+      execSync(
+        'curl -fsSL https://github.com/Criscode2022/scrapyard-manager/archive/refs/heads/vercel-production.tar.gz | tar xz -C /tmp && rm -rf ' +
+          PUBLIC_ROOT +
+          ' && mv /tmp/scrapyard-manager-vercel-production/public ' +
+          PUBLIC_ROOT,
+        { stdio: 'pipe', timeout: 60000 },
+      );
+    }
+    publicReady = fs.existsSync(path.join(PUBLIC_ROOT, 'index.html'));
+  } catch (e) {
+    console.error('ensurePublic failed', e);
+    publicReady = false;
+  }
+  return publicReady;
+}
+
 function serveStatic(pathname, res) {
-  const dirs = [
-    path.join(__dirname, '..', 'public'),
-    path.join(process.cwd(), 'public'),
-    path.join(__dirname, 'public'),
-  ];
+  if (!ensurePublic()) return false;
+  const dir = PUBLIC_ROOT;
   let rel = pathname === '/' ? '/index.html' : pathname;
   const hasExt = path.extname(rel) !== '';
-  for (const dir of dirs) {
-    if (!fs.existsSync(dir)) continue;
-    let file = path.normalize(path.join(dir, rel));
-    if (!file.startsWith(path.normalize(dir))) continue;
-    if (!hasExt) {
-      const spa = path.join(dir, 'index.html');
-      if (fs.existsSync(spa)) file = spa;
-      else continue;
-    }
-    if (fs.existsSync(file) && fs.statSync(file).isFile()) {
-      const ext = path.extname(file).toLowerCase();
-      res.statusCode = 200;
-      res.setHeader('Content-Type', MIME[ext] || 'application/octet-stream');
-      res.setHeader('Cache-Control', ext === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable');
-      res.end(fs.readFileSync(file));
-      return true;
-    }
+  let file = path.normalize(path.join(dir, rel));
+  if (!file.startsWith(path.normalize(dir))) return false;
+  if (!hasExt) {
+    const spa = path.join(dir, 'index.html');
+    if (fs.existsSync(spa)) file = spa;
+    else return false;
+  }
+  if (fs.existsSync(file) && fs.statSync(file).isFile()) {
+    const ext = path.extname(file).toLowerCase();
+    res.statusCode = 200;
+    res.setHeader('Content-Type', MIME[ext] || 'application/octet-stream');
+    res.setHeader('Cache-Control', ext === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable');
+    res.end(fs.readFileSync(file));
+    return true;
   }
   return false;
 }
