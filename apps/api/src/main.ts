@@ -6,6 +6,20 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import { AppModule } from './app.module';
 
+function resolveClientDist(): string | null {
+  // Prefer monorepo Angular output, then staged public/ (Vercel / publish)
+  const candidates = [
+    join(__dirname, '..', '..', 'web', 'dist', 'web', 'browser'),
+    join(__dirname, '..', '..', '..', 'public'),
+    join(process.cwd(), 'public'),
+    join(process.cwd(), 'apps', 'web', 'dist', 'web', 'browser'),
+  ];
+  for (const dir of candidates) {
+    if (existsSync(join(dir, 'index.html'))) return dir;
+  }
+  return null;
+}
+
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
@@ -19,17 +33,17 @@ async function bootstrap() {
     }),
   );
 
-  // Serve Angular production build when present (monolith deploy / preview).
-  const clientDist = join(__dirname, '..', '..', 'web', 'dist', 'web', 'browser');
-  if (existsSync(clientDist)) {
+  const clientDist = resolveClientDist();
+  if (clientDist) {
     app.useStaticAssets(clientDist);
     app.use((req: Request, res: Response, next: NextFunction) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') return next();
       if (req.path.startsWith('/api')) return next();
-      // Avoid shadowing real static assets with SPA fallback
       if (req.path.includes('.')) return next();
       res.sendFile(join(clientDist, 'index.html'));
     });
+    // eslint-disable-next-line no-console
+    console.log(`Serving SPA from ${clientDist}`);
   }
 
   const port = Number(process.env.PORT || 8080);

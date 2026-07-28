@@ -3,13 +3,17 @@
   "private": true,
   "version": "1.0.0",
   "description": "Scrapyard cars & parts manager — Angular + NestJS + Neon Postgres",
+  "main": "server.js",
   "scripts": {
-    "dev": "npm run build:web && npm run start:api",
-    "start:api": "npm run start:prod --prefix apps/api",
+    "postinstall": "npm install --prefix apps/api --legacy-peer-deps && npm install --prefix apps/web --legacy-peer-deps",
+    "dev": "npm run build:web && npm run start",
+    "start": "node server.js",
+    "start:api": "node server.js",
     "start:api:dev": "npm run start:dev --prefix apps/api",
-    "build": "npm run build:web && npm run build:api",
+    "build": "npm run build:web && npm run build:api && node scripts/prepare-deploy.cjs",
     "build:web": "npm run build --prefix apps/web",
     "build:api": "npm run build --prefix apps/api",
+    "vercel-build": "npm run build",
     "typecheck": "npm run build:api && cd apps/web && npx ng build --configuration development --no-progress"
   },
   "engines": {
