@@ -110,6 +110,49 @@ function pathOf(req) {
   return { pathname: u.pathname.replace(/\/$/, '') || '/', searchParams: u.searchParams };
 }
 
+const fs = require('fs');
+const path = require('path');
+
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.svg': 'image/svg+xml',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.woff2': 'font/woff2',
+};
+
+function serveStatic(pathname, res) {
+  const dirs = [
+    path.join(__dirname, '..', 'public'),
+    path.join(process.cwd(), 'public'),
+    path.join(__dirname, 'public'),
+  ];
+  let rel = pathname === '/' ? '/index.html' : pathname;
+  const hasExt = path.extname(rel) !== '';
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) continue;
+    let file = path.normalize(path.join(dir, rel));
+    if (!file.startsWith(path.normalize(dir))) continue;
+    if (!hasExt) {
+      const spa = path.join(dir, 'index.html');
+      if (fs.existsSync(spa)) file = spa;
+      else continue;
+    }
+    if (fs.existsSync(file) && fs.statSync(file).isFile()) {
+      const ext = path.extname(file).toLowerCase();
+      res.statusCode = 200;
+      res.setHeader('Content-Type', MIME[ext] || 'application/octet-stream');
+      res.setHeader('Cache-Control', ext === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable');
+      res.end(fs.readFileSync(file));
+      return true;
+    }
+  }
+  return false;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
@@ -123,6 +166,13 @@ module.exports = async function handler(req, res) {
   try {
     const { pathname, searchParams } = pathOf(req);
     const method = req.method || 'GET';
+
+    // Serve Angular SPA / assets for non-API GETs
+    if (method === 'GET' && !pathname.startsWith('/api')) {
+      if (serveStatic(pathname, res)) return;
+      if (serveStatic('/', res)) return;
+    }
+
 
     // Health
     if (
