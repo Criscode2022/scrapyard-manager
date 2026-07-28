@@ -31,6 +31,7 @@ export class PartsComponent implements OnInit {
   readonly showForm = signal(false);
   readonly saving = signal(false);
   readonly editing = signal<Part | null>(null);
+  readonly view = signal<'cards' | 'table'>('cards');
 
   readonly statuses = PART_STATUSES;
   readonly categories = PART_CATEGORIES;
@@ -39,7 +40,6 @@ export class PartsComponent implements OnInit {
   filterStatus = '';
   filterCategory = '';
   filterQ = '';
-
   form = this.emptyForm();
 
   ngOnInit() {
@@ -60,6 +60,10 @@ export class PartsComponent implements OnInit {
       notes: '',
       carId: '' as string,
     };
+  }
+
+  setView(mode: 'cards' | 'table') {
+    this.view.set(mode);
   }
 
   conditionLabel(value: string): string {

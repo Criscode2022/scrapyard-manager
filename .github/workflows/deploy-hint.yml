@@ -1,0 +1,25 @@
+name: Neon connection check
+
+# Optional: runs only when DATABASE_URL is set on the "production" environment.
+# Wire this secret after creating a Neon project (see scripts/setup-neon.mjs).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check-db:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Verify DATABASE_URL is configured
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "DATABASE_URL is not set on the production environment."
+            echo "Create a Neon project (scripts/setup-neon.mjs) and:"
+            echo "  gh secret set DATABASE_URL --env production -R OWNER/REPO"
+            exit 1
+          fi
+          echo "DATABASE_URL is present (value redacted)."
+          echo "Host: $(node -e "try{const u=new URL(process.env.DATABASE_URL);console.log(u.hostname)}catch{console.log('unparsed')}")"

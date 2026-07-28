@@ -1,8 +1,8 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CurrencyPipe, DatePipe, TitleCasePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
-import { YardStats, labelStatus, money } from '../../core/models';
+import { YardStats } from '../../core/models';
 
 @Component({
   selector: 'app-dashboard',
@@ -18,8 +18,27 @@ export class DashboardComponent implements OnInit {
   readonly error = signal<string | null>(null);
   readonly stats = signal<YardStats | null>(null);
 
-  readonly labelStatus = labelStatus;
-  readonly money = money;
+  readonly pipeline = computed(() => {
+    const s = this.stats();
+    if (!s) return [];
+    return s.carsByStatus.filter((r) =>
+      ['arrived', 'dismantling', 'complete', 'sold', 'crushed'].includes(r.status),
+    );
+  });
+
+  readonly topCategories = computed(() => {
+    const s = this.stats();
+    if (!s) return [];
+    return [...s.partsByCategory]
+      .filter((c) => c.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  });
+
+  readonly maxCategory = computed(() => {
+    const rows = this.topCategories();
+    return rows.reduce((m, r) => Math.max(m, r.count), 1);
+  });
 
   ngOnInit() {
     this.reload();
@@ -38,5 +57,11 @@ export class DashboardComponent implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  barPct(count: number): number {
+    const s = this.stats();
+    if (!s?.totalCars) return 0;
+    return Math.round((count / s.totalCars) * 100);
   }
 }

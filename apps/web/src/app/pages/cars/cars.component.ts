@@ -3,12 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { CurrencyPipe, DatePipe, TitleCasePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
-import {
-  CAR_STATUSES,
-  Car,
-  CarStatus,
-  labelStatus,
-} from '../../core/models';
+import { CAR_STATUSES, Car, CarStatus } from '../../core/models';
 
 @Component({
   selector: 'app-cars',
@@ -26,13 +21,12 @@ export class CarsComponent implements OnInit {
   readonly showForm = signal(false);
   readonly saving = signal(false);
   readonly editing = signal<Car | null>(null);
+  readonly view = signal<'cards' | 'table'>('cards');
 
   readonly statuses = CAR_STATUSES;
-  readonly labelStatus = labelStatus;
 
   filterStatus = '';
   filterQ = '';
-
   form = this.emptyForm();
 
   ngOnInit() {
@@ -53,6 +47,10 @@ export class CarsComponent implements OnInit {
       odometer: 0,
       notes: '',
     };
+  }
+
+  setView(mode: 'cards' | 'table') {
+    this.view.set(mode);
   }
 
   reload() {

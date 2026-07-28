@@ -1,9 +1,18 @@
 <div class="page-head">
   <div>
-    <h1>Cars</h1>
-    <p>Incoming hulks, dismantle progress, and yard locations.</p>
+    <h1>Cars on the lot</h1>
+    <p>Incoming hulks, dismantle progress, and yard locations — card or list view.</p>
   </div>
-  <button type="button" class="btn btn-primary" (click)="openCreate()">Add car</button>
+  <div class="head-actions">
+    <div class="view-toggle" role="group" aria-label="View mode">
+      <button type="button" [class.active]="view() === 'cards'" (click)="setView('cards')">Cards</button>
+      <button type="button" [class.active]="view() === 'table'" (click)="setView('table')">Table</button>
+    </div>
+    <button type="button" class="btn btn-primary" (click)="openCreate()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>
+      Add car
+    </button>
+  </div>
 </div>
 
 <div class="toolbar">
@@ -26,9 +35,9 @@
       }
     </select>
   </div>
-  <div class="field" style="flex: 0; min-width: auto; justify-content: flex-end">
+  <div class="field" style="flex: 0; min-width: auto">
     <label>&nbsp;</label>
-    <button type="button" class="btn btn-secondary" (click)="reload()">Filter</button>
+    <button type="button" class="btn btn-secondary" (click)="reload()">Apply</button>
   </div>
 </div>
 
@@ -37,7 +46,61 @@
 }
 
 @if (loading()) {
-  <div class="card empty">Loading cars…</div>
+  <div class="visual-grid">
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+  </div>
+} @else if (view() === 'cards') {
+  <div class="visual-grid">
+    @for (car of cars(); track car.id) {
+      <article class="vehicle-card rise-in">
+        <div class="vehicle-art" aria-hidden="true">
+          <svg viewBox="0 0 88 40" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M8 26h72l-6-12a6 6 0 0 0-5.4-3.5H22A6 6 0 0 0 16.4 14L8 26Z"/>
+            <circle cx="26" cy="30" r="5"/>
+            <circle cx="62" cy="30" r="5"/>
+            <path d="M28 14h20"/>
+          </svg>
+        </div>
+        <div>
+          <h3>
+            <a class="linkish" [routerLink]="['/cars', car.id]">
+              {{ car.year }} {{ car.make }} {{ car.model }}
+            </a>
+          </h3>
+          <div class="mono" style="margin-top: 4px">{{ car.vin || 'No VIN' }}</div>
+        </div>
+        <div class="meta-row">
+          <span class="badge" [class]="car.status">{{ car.status | titlecase }}</span>
+          @if (car.yardLocation) {
+            <span class="meta-chip">{{ car.yardLocation }}</span>
+          }
+          @if (car.color) {
+            <span class="meta-chip">{{ car.color }}</span>
+          }
+        </div>
+        <div class="card-foot">
+          <div>
+            <div class="price">{{ car.purchasePrice | currency:'USD':'symbol':'1.0-0' }}</div>
+            <div class="mono">{{ car.parts?.length ?? 0 }} parts</div>
+          </div>
+          <div class="row-actions">
+            <a class="btn btn-ghost" [routerLink]="['/cars', car.id]">Open</a>
+            <button type="button" class="btn btn-ghost" (click)="openEdit(car)">Edit</button>
+          </div>
+        </div>
+      </article>
+    } @empty {
+      <div class="card empty" style="grid-column: 1 / -1">
+        <strong>No cars match</strong>
+        Add a car to start tracking the lot.
+        <div style="margin-top: 16px">
+          <button type="button" class="btn btn-primary" (click)="openCreate()">Add car</button>
+        </div>
+      </div>
+    }
+  </div>
 } @else {
   <div class="table-wrap">
     <table class="data">
@@ -75,12 +138,7 @@
           </tr>
         } @empty {
           <tr>
-            <td colspan="7">
-              <div class="empty">
-                <strong>No cars match</strong>
-                Add a car to start tracking the lot.
-              </div>
-            </td>
+            <td colspan="7"><div class="empty">No cars match</div></td>
           </tr>
         }
       </tbody>
@@ -93,28 +151,12 @@
     <div class="modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
       <h2>{{ editing() ? 'Edit car' : 'Add car' }}</h2>
       <p class="sub">Capture intake details for a vehicle on the yard.</p>
-
       <div class="form-grid">
-        <div class="field">
-          <label>Make</label>
-          <input [(ngModel)]="form.make" required />
-        </div>
-        <div class="field">
-          <label>Model</label>
-          <input [(ngModel)]="form.model" required />
-        </div>
-        <div class="field">
-          <label>Year</label>
-          <input type="number" [(ngModel)]="form.year" />
-        </div>
-        <div class="field">
-          <label>Color</label>
-          <input [(ngModel)]="form.color" />
-        </div>
-        <div class="field">
-          <label>VIN</label>
-          <input [(ngModel)]="form.vin" />
-        </div>
+        <div class="field"><label>Make</label><input [(ngModel)]="form.make" required /></div>
+        <div class="field"><label>Model</label><input [(ngModel)]="form.model" required /></div>
+        <div class="field"><label>Year</label><input type="number" [(ngModel)]="form.year" /></div>
+        <div class="field"><label>Color</label><input [(ngModel)]="form.color" /></div>
+        <div class="field"><label>VIN</label><input [(ngModel)]="form.vin" /></div>
         <div class="field">
           <label>Status</label>
           <select [(ngModel)]="form.status">
@@ -123,28 +165,12 @@
             }
           </select>
         </div>
-        <div class="field">
-          <label>Yard location</label>
-          <input [(ngModel)]="form.yardLocation" placeholder="Row A-12" />
-        </div>
-        <div class="field">
-          <label>Arrival date</label>
-          <input type="date" [(ngModel)]="form.arrivalDate" />
-        </div>
-        <div class="field">
-          <label>Purchase price</label>
-          <input type="number" min="0" [(ngModel)]="form.purchasePrice" />
-        </div>
-        <div class="field">
-          <label>Odometer</label>
-          <input type="number" min="0" [(ngModel)]="form.odometer" />
-        </div>
-        <div class="field full">
-          <label>Notes</label>
-          <textarea [(ngModel)]="form.notes" placeholder="Damage, condition, pull priority…"></textarea>
-        </div>
+        <div class="field"><label>Yard location</label><input [(ngModel)]="form.yardLocation" placeholder="Row A-12" /></div>
+        <div class="field"><label>Arrival date</label><input type="date" [(ngModel)]="form.arrivalDate" /></div>
+        <div class="field"><label>Purchase price</label><input type="number" min="0" [(ngModel)]="form.purchasePrice" /></div>
+        <div class="field"><label>Odometer</label><input type="number" min="0" [(ngModel)]="form.odometer" /></div>
+        <div class="field full"><label>Notes</label><textarea [(ngModel)]="form.notes"></textarea></div>
       </div>
-
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" (click)="closeForm()">Cancel</button>
         <button type="button" class="btn btn-primary" [disabled]="saving()" (click)="save()">

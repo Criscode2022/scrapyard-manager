@@ -4,7 +4,7 @@ Full-stack app to manage **cars** and **parts** at a scrapyard.
 
 | Layer | Stack |
 | --- | --- |
-| Frontend | **Angular 19** (standalone components, signals) |
+| Frontend | **Angular 19** (standalone components, signals, card + table views) |
 | Backend | **NestJS 11** REST API |
 | Database | **Neon Postgres** (TypeORM) with in-memory fallback for local preview |
 
@@ -12,12 +12,11 @@ Full-stack app to manage **cars** and **parts** at a scrapyard.
 
 ## Features
 
-- Dashboard with inventory value, status breakdowns, recent activity
-- Cars CRUD — make/model/year, VIN, yard row, status pipeline (arrived → dismantling → complete → crushed/sold)
-- Parts CRUD — category, condition, price, qty, bin location, source car link
-- Car detail view with parts pulled from that vehicle
-- Search & filter on cars and parts
+- Modern visual dashboard — KPI tiles, car pipeline, category bars, quick actions
+- Cars & parts as **cards or table** with search/filter
+- Car detail with status updates and pulled parts
 - Seeded demo data for a quick tour
+- Neon-ready: set `DATABASE_URL` and tables + seed run automatically
 
 ## Project layout
 
@@ -25,61 +24,68 @@ Full-stack app to manage **cars** and **parts** at a scrapyard.
 apps/
   api/   NestJS API (TypeORM + Neon / memory)
   web/   Angular SPA
+scripts/
+  setup-neon.mjs   Create a Neon project via API key
+.github/
+  workflows/       CI + Neon secret check
 ```
 
 ## Quick start
 
 ```bash
-# Install
+git clone https://github.com/Criscode2022/scrapyard-manager.git
+cd scrapyard-manager
 cd apps/api && npm install
 cd ../web && npm install
-
-# Optional: Neon connection string
-export DATABASE_URL="postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require"
-
-# Build Angular + start API (serves SPA + /api on :8080)
 cd ../..
 npm run build
 PORT=8080 npm run start:api
 ```
 
-Open http://localhost:8080
+Without `DATABASE_URL`, the API uses a seeded **in-memory** store.
 
-Without `DATABASE_URL`, the API uses a seeded **in-memory** store so the UI works offline/preview.
+### Neon database
 
-### Dev (API watch + Angular with proxy)
+1. Create an API key at [console.neon.tech](https://console.neon.tech) → Account settings → API keys  
+2. Create a project:
 
 ```bash
-# terminal 1
-cd apps/api && PORT=8080 npm run start:dev
-
-# terminal 2
-cd apps/web && npx ng serve --host 0.0.0.0 --port 4200
+export NEON_API_KEY=nap_...
+node scripts/setup-neon.mjs --name scrapyard-manager
+# prints DATABASE_URL
 ```
 
-Angular proxies `/api` → `http://127.0.0.1:8080` via `apps/web/proxy.conf.json`.
+3. Use it locally:
+
+```bash
+export DATABASE_URL='postgresql://…@ep-….neon.tech/neondb?sslmode=require'
+# restart the API
+```
+
+4. GitHub **environment secrets** (environments `production` and `preview` are created on the repo):
+
+```bash
+# Requires a GitHub token with Actions secrets: write
+echo -n "$DATABASE_URL" | gh secret set DATABASE_URL --env production -R Criscode2022/scrapyard-manager
+echo -n "$DATABASE_URL" | gh secret set DATABASE_URL --env preview -R Criscode2022/scrapyard-manager
+```
+
+> **Note:** The Grok/GitHub integration token used during app generation can create environments but **cannot write secrets** (HTTP 403). Set `DATABASE_URL` yourself in  
+> **Repo → Settings → Environments → production → Environment secrets**,  
+> or with `gh secret set` using a PAT that has `secrets` write.
 
 ## API
 
 | Method | Path | Description |
 | --- | --- | --- |
 | GET | `/api/stats` | Dashboard metrics |
-| GET | `/api/stats/health` | Health + db mode |
+| GET | `/api/stats/health` | Health + db mode (`neon` \| `memory`) |
 | GET/POST | `/api/cars` | List / create cars |
 | GET/PATCH/DELETE | `/api/cars/:id` | Car detail / update / delete |
 | GET/POST | `/api/parts` | List / create parts |
 | GET/PATCH/DELETE | `/api/parts/:id` | Part detail / update / delete |
 
 Query params: `status`, `category`, `carId`, `q` (search).
-
-## Neon setup
-
-1. Create a project at [neon.tech](https://neon.tech)
-2. Copy the connection string
-3. Set `DATABASE_URL` in your host / Vercel / Railway env
-4. Restart the API — TypeORM `synchronize` creates tables and seeds demo rows if empty
-
-> For production, prefer migrations over `synchronize: true` (toggle in `apps/api/src/database/database.module.ts`).
 
 ## License
 

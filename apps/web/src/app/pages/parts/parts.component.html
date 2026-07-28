@@ -1,21 +1,24 @@
 <div class="page-head">
   <div>
     <h1>Parts inventory</h1>
-    <p>Price, bin, and sell components pulled from the yard.</p>
+    <p>Visual shelf of engines, body, electrical and more — filter, price, and sell.</p>
   </div>
-  <button type="button" class="btn btn-primary" (click)="openCreate()">Add part</button>
+  <div class="head-actions">
+    <div class="view-toggle" role="group" aria-label="View mode">
+      <button type="button" [class.active]="view() === 'cards'" (click)="setView('cards')">Cards</button>
+      <button type="button" [class.active]="view() === 'table'" (click)="setView('table')">Table</button>
+    </div>
+    <button type="button" class="btn btn-primary" (click)="openCreate()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>
+      Add part
+    </button>
+  </div>
 </div>
 
 <div class="toolbar">
   <div class="field">
     <label for="part-q">Search</label>
-    <input
-      id="part-q"
-      type="search"
-      placeholder="Name, SKU, bin…"
-      [(ngModel)]="filterQ"
-      (keyup.enter)="reload()"
-    />
+    <input id="part-q" type="search" placeholder="Name, SKU, bin…" [(ngModel)]="filterQ" (keyup.enter)="reload()" />
   </div>
   <div class="field">
     <label for="part-status">Status</label>
@@ -37,7 +40,7 @@
   </div>
   <div class="field" style="flex: 0; min-width: auto">
     <label>&nbsp;</label>
-    <button type="button" class="btn btn-secondary" (click)="reload()">Filter</button>
+    <button type="button" class="btn btn-secondary" (click)="reload()">Apply</button>
   </div>
 </div>
 
@@ -46,7 +49,42 @@
 }
 
 @if (loading()) {
-  <div class="card empty">Loading parts…</div>
+  <div class="visual-grid">
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+  </div>
+} @else if (view() === 'cards') {
+  <div class="visual-grid">
+    @for (part of parts(); track part.id) {
+      <article class="part-card rise-in">
+        <div class="part-top">
+          <span class="cat-pill">{{ part.category | titlecase }}</span>
+          <span class="badge" [class]="part.status">{{ part.status | titlecase }}</span>
+        </div>
+        <h3>{{ part.name }}</h3>
+        <div class="mono">{{ part.sku || 'No SKU' }} · {{ part.binLocation || 'No bin' }}</div>
+        <div class="meta-row">
+          <span class="meta-chip">{{ conditionLabel(part.condition) | titlecase }}</span>
+          <span class="meta-chip">Qty {{ part.quantity }}</span>
+        </div>
+        <div class="card-foot">
+          <div class="price">{{ part.price | currency:'USD':'symbol':'1.0-0' }}</div>
+          <div class="row-actions">
+            @if (part.carId) {
+              <a class="btn btn-ghost" [routerLink]="['/cars', part.carId]">Source</a>
+            }
+            <button type="button" class="btn btn-ghost" (click)="openEdit(part)">Edit</button>
+          </div>
+        </div>
+      </article>
+    } @empty {
+      <div class="card empty" style="grid-column: 1 / -1">
+        <strong>No parts match</strong>
+        Add inventory or clear filters.
+      </div>
+    }
+  </div>
 } @else {
   <div class="table-wrap">
     <table class="data">
@@ -89,14 +127,7 @@
             </td>
           </tr>
         } @empty {
-          <tr>
-            <td colspan="8">
-              <div class="empty">
-                <strong>No parts match</strong>
-                Add inventory or clear filters.
-              </div>
-            </td>
-          </tr>
+          <tr><td colspan="8"><div class="empty">No parts match</div></td></tr>
         }
       </tbody>
     </table>
@@ -108,12 +139,8 @@
     <div class="modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
       <h2>{{ editing() ? 'Edit part' : 'Add part' }}</h2>
       <p class="sub">Catalog a component for sale or reserve.</p>
-
       <div class="form-grid">
-        <div class="field full">
-          <label>Name</label>
-          <input [(ngModel)]="form.name" required />
-        </div>
+        <div class="field full"><label>Name</label><input [(ngModel)]="form.name" required /></div>
         <div class="field">
           <label>Category</label>
           <select [(ngModel)]="form.category">
@@ -138,39 +165,21 @@
             }
           </select>
         </div>
-        <div class="field">
-          <label>Price</label>
-          <input type="number" min="0" [(ngModel)]="form.price" />
-        </div>
-        <div class="field">
-          <label>Quantity</label>
-          <input type="number" min="0" [(ngModel)]="form.quantity" />
-        </div>
-        <div class="field">
-          <label>SKU</label>
-          <input [(ngModel)]="form.sku" />
-        </div>
-        <div class="field">
-          <label>Bin location</label>
-          <input [(ngModel)]="form.binLocation" />
-        </div>
+        <div class="field"><label>Price</label><input type="number" min="0" [(ngModel)]="form.price" /></div>
+        <div class="field"><label>Quantity</label><input type="number" min="0" [(ngModel)]="form.quantity" /></div>
+        <div class="field"><label>SKU</label><input [(ngModel)]="form.sku" /></div>
+        <div class="field"><label>Bin location</label><input [(ngModel)]="form.binLocation" /></div>
         <div class="field full">
           <label>Source car</label>
           <select [(ngModel)]="form.carId">
             <option value="">None</option>
             @for (car of cars(); track car.id) {
-              <option [value]="car.id">
-                {{ car.year }} {{ car.make }} {{ car.model }}
-              </option>
+              <option [value]="car.id">{{ car.year }} {{ car.make }} {{ car.model }}</option>
             }
           </select>
         </div>
-        <div class="field full">
-          <label>Notes</label>
-          <textarea [(ngModel)]="form.notes"></textarea>
-        </div>
+        <div class="field full"><label>Notes</label><textarea [(ngModel)]="form.notes"></textarea></div>
       </div>
-
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" (click)="closeForm()">Cancel</button>
         <button type="button" class="btn btn-primary" [disabled]="saving()" (click)="save()">

@@ -1,7 +1,7 @@
 <a class="back linkish" routerLink="/cars">← Back to cars</a>
 
 @if (loading()) {
-  <div class="card empty">Loading car…</div>
+  <div class="skeleton" style="min-height: 200px"></div>
 } @else if (error()) {
   <div class="card empty">
     <strong>{{ error() }}</strong>
@@ -9,10 +9,17 @@
   </div>
 } @else {
   @if (car(); as c) {
-    <div class="page-head">
+    <div class="detail-hero">
+      <div class="detail-art" aria-hidden="true">
+        <svg viewBox="0 0 88 40" fill="none" stroke="currentColor" stroke-width="1.6">
+          <path d="M8 26h72l-6-12a6 6 0 0 0-5.4-3.5H22A6 6 0 0 0 16.4 14L8 26Z"/>
+          <circle cx="26" cy="30" r="5"/>
+          <circle cx="62" cy="30" r="5"/>
+        </svg>
+      </div>
       <div>
         <h1>{{ c.year }} {{ c.make }} {{ c.model }}</h1>
-        <p>
+        <p style="margin-top: 8px; color: var(--fg-muted)">
           <span class="mono">{{ c.vin || 'No VIN' }}</span>
           @if (c.color) {
             <span> · {{ c.color }}</span>
@@ -21,14 +28,13 @@
             <span> · {{ c.yardLocation }}</span>
           }
         </p>
+        <div class="meta-row" style="margin-top: 12px">
+          <span class="badge" [class]="c.status">{{ c.status | titlecase }}</span>
+        </div>
       </div>
       <div class="status-picker field">
-        <label for="status">Status</label>
-        <select
-          id="status"
-          [ngModel]="c.status"
-          (ngModelChange)="updateStatus($event)"
-        >
+        <label for="status">Update status</label>
+        <select id="status" [ngModel]="c.status" (ngModelChange)="updateStatus($event)">
           @for (s of statuses; track s) {
             <option [value]="s">{{ s | titlecase }}</option>
           }
@@ -73,40 +79,23 @@
         <button type="button" class="btn btn-primary" (click)="openPartForm()">Add part</button>
       </div>
 
-      <div class="table-wrap">
-        <table class="data">
-          <thead>
-            <tr>
-              <th>Part</th>
-              <th>Category</th>
-              <th>Condition</th>
-              <th>Status</th>
-              <th>Price</th>
-              <th>Bin</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (part of parts(); track part.id) {
-              <tr>
-                <td>
-                  <strong>{{ part.name }}</strong>
-                  <div class="mono">{{ part.sku || 'No SKU' }}</div>
-                </td>
-                <td>{{ part.category | titlecase }}</td>
-                <td>{{ conditionLabel(part.condition) | titlecase }}</td>
-                <td><span class="badge" [class]="part.status">{{ part.status | titlecase }}</span></td>
-                <td>{{ part.price | currency:'USD':'symbol':'1.0-0' }}</td>
-                <td>{{ part.binLocation || '—' }}</td>
-              </tr>
-            } @empty {
-              <tr>
-                <td colspan="6">
-                  <div class="empty">No parts logged for this car yet.</div>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
+      <div class="visual-grid">
+        @for (part of parts(); track part.id) {
+          <article class="part-card">
+            <div class="meta-row">
+              <span class="badge" [class]="part.status">{{ part.status | titlecase }}</span>
+              <span class="meta-chip">{{ part.category | titlecase }}</span>
+            </div>
+            <h3>{{ part.name }}</h3>
+            <div class="mono">{{ part.sku || 'No SKU' }} · {{ part.binLocation || 'No bin' }}</div>
+            <div class="card-foot">
+              <div class="price">{{ part.price | currency:'USD':'symbol':'1.0-0' }}</div>
+              <span class="meta-chip">{{ conditionLabel(part.condition) | titlecase }}</span>
+            </div>
+          </article>
+        } @empty {
+          <div class="card empty" style="grid-column: 1 / -1">No parts logged for this car yet.</div>
+        }
       </div>
     </section>
   }
